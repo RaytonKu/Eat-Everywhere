@@ -1,0 +1,13 @@
+version: '3'
+services:
+  app:
+    image: 
+    container_name:
+    volumes:
+    ports:
+    environment: 
+    
+networks:
+  default:
+    name: group2
+volumes:
