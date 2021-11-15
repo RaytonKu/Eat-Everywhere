@@ -1,13 +1,49 @@
 version: '3'
 services:
   app:
-    image: 
-    container_name:
-    volumes:
+    build: ./app
+    image: eats_app
+    container_name: service_eats2
+    volumes: 
+      - ./app:/app
     ports:
-    environment: 
+      - "5000:5000"
+#   environment: 
+# Database setting
+  db:
+#   build: ./database
+    image: redis
+    container_name: database2
+    volumes:
+      - ./data:/data
+    ports:
+      - "8001:6379"
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus2
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - '9090:9090'
+# Grafana service setting
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+# # Reset username and pw
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=group2
+    depends_on:
+      - prometheus
+    ports:
+      - '3000:3000'
     
 networks:
   default:
     name: group2
 volumes:
+  prometheus_data: {}
+  grafana_data: {}
