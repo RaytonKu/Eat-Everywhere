@@ -16,6 +16,9 @@ metrics = PrometheusMetrics(app)
 
 total_requests = Counter('request_count', 'Total webapp request count')
 
+# static information as metric
+metrics.info('app_info', 'Application info', version='1.0.3')
+
 # TEST
 #db.hmset('test_store', {'store_addr':'test_addr', 'store_tel':'test_tel', 'store_dishes1':'test_dishes1', 'store_dishes2':'test_dishes2', 'store_dishes3':'test_dishes3'})
 #db.hset('test_store', 'store_addr', 'test_addr')
@@ -23,6 +26,9 @@ total_requests = Counter('request_count', 'Total webapp request count')
 #db.hset('test_store', 'store_dishes1', 'test_dishes1')
 #db.hset('test_store', 'store_dishes2', 'test_dishes2')
 #db.hset('test_store', 'store_dishes3', 'test_dishes3')
+
+#db.hset('23456789', 'store_name', 'test_store')
+#db.hset('23456789', 'order_time', '2021-11-20 19:00')
 
 # Gateway
 @app.route('/')
@@ -56,11 +62,31 @@ def add_store():
     db.hset(store_name, 'store_dishes1', store_dishes1)
     db.hset(store_name, 'store_dishes2', store_dishes2)
     db.hset(store_name, 'store_dishes3', store_dishes3)
-    return 'added'
+    return 'store added'
 
 @app.route('/eats/stores/del_store/<store_name>', methods=['POST'])
 def del_store():
 	pass
+
+@app.route('/eats/orders/get_order/<customer_tel>', methods=['GET'])
+def get_order(customer_tel):
+    store_name = db.hget(customer_tel, 'store_name').decode()
+    order_time = db.hget(customer_tel, 'order_time').decode()
+    order = {'customer_tel':customer_tel, 'store_name':store_name, 'order_time': order_time}
+    return json.dumps(order)
+
+@app.route('/eats/orders/add_order', methods=['POST'])
+def add_order():
+    customer_tel = request.values.get('customer_tel')
+    store_name = request.values.get('store_name')
+    order_time = request.values.get('order_time')
+    db.hset(customer_tel, 'store_name', store_name)
+    db.hset(customer_tel, 'order_time', order_time)
+    return 'order added'
+
+@app.route('/eats/orders/del_order/<customer_tel>', methods=['POST'])
+def del_order():
+    pass
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
