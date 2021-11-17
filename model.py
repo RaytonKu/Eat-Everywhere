@@ -13,13 +13,15 @@ redis_cache = FlaskRedis()
 class RestaurantModel(db.Model):
     __tablename__ = 'restaurants'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    phone = db.Column(db.String(150), unique=True, nullable=False)
-    address = db.Column(db.String(500), unique=True, nullable=False)
+    name = db.Column(db.String(250), nullable=False))
+    phone = db.Column(db.String(150), nullable=False))
+    address = db.Column(db.String(500), nullable=False))
     creation_date = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), nullable=False)
 
-    def __init__(self, name):
+    def __init__(self, name, phone, address):
         self.name = name
+        self.phone = phone
+        self.address = address
         
 class MenuModel(db.Model):
     __tablename__ = 'menus'
@@ -37,7 +39,6 @@ class FoodModel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(250), nullable=False)
     description = db.Column(db.String(250))
-    creation_date = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), nullable=False)
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurants.id', ondelete='CASCADE'), nullable=False)
     restaurant = db.relationship('RestaurantModel', backref=db.backref('foods', lazy='dynamic' ))
     menu_id = db.Column(db.Integer, db.ForeignKey('menus.id', ondelete='CASCADE'), nullable=False)
@@ -49,7 +50,6 @@ class FoodModel(db.Model):
         self.restaurant_id = restaurant_id
         self.menu_id = menu_id
         
-
 # Schema
 class RestaurantSchema(ma.Schema):
     id = fields.Integer()
@@ -68,4 +68,3 @@ class FoodSchema(ma.Schema):
     restaurant_id = fields.Integer(required=True)
     name = fields.String(required=True, validate=validate.Length(1))
     description = fields.String()
-    creation_date = fields.DateTime()
