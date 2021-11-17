@@ -23,14 +23,13 @@ class RestaurantResource(Resource):
             restaurants = RestaurantModel.query.all()
             restaurants = restaurants_schema.dump(restaurants).data
             redis_cache.__setitem__(RESTAURANT_LIST,restaurants)
-
         return {'status': 'success', 'data': restaurants}, 200
-
 
     def post(self):
         json_data = request.get_json(force=True)
         if not json_data:
                return {'message': 'No input data provided'}, 400
+            
         # Validate and deserialize input
         data, errors = restaurant_schema.load(json_data)
         if errors:
@@ -38,22 +37,17 @@ class RestaurantResource(Resource):
         restaurant = RestaurantModel.query.filter_by(name=data['name']).first()
         if restaurant:
             return {'message': 'Restaurant already exists'}, 400
-        restaurant = RestaurantModel(
-            name=json_data['name']
-            )
-
+        restaurant = RestaurantModel(name=json_data['name'])
         db.session.add(restaurant)
         db.session.commit()
-
         result = restaurant_schema.dump(restaurant).data
-
         return { "status": 'success', 'data': result }, 201
-
 
     def put(self):
         json_data = request.get_json(force=True)
         if not json_data:
                return {'message': 'No input data provided'}, 400
+            
         # Validate and deserialize input
         data, errors = restaurant_schema.load(json_data)
         if errors:
@@ -63,16 +57,14 @@ class RestaurantResource(Resource):
             return {'message': 'Restaurant do not exist'}, 400
         restaurant.name = data['name']
         db.session.commit()
-
         result = restaurant_schema.dump(restaurant).data
-
         return { "status": 'success', 'data': result }, 204
-
 
     def delete(self):
         json_data = request.get_json(force=True)
         if not json_data:
                return {'message': 'No input data provided'}, 400
+            
         # Validate and deserialize input
         data, errors = restaurant_schema.load(json_data)
         if errors:
@@ -80,14 +72,10 @@ class RestaurantResource(Resource):
         restaurant = RestaurantModel.query.filter_by(id=data['id']).delete()
         db.session.commit()
         result = restaurant_schema.dump(restaurant).data
-
         return { "status": 'success', 'data': result}, 204
 
-
 class RestaurantItemResource(Resource):
-
     def get(self, id):
         restaurant = RestaurantModel.query.filter_by(id=id)
         restaurant = restaurants_schema.dump(restaurant).data
         return {'status': 'success', 'data': restaurant}, 200
-
