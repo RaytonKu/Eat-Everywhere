@@ -44,3 +44,14 @@ def get_holiday_hours(restaurant_id):
         return json.loads(db.hget("holidayHours",restaurant_id)), 200
     else:
         return {"Error": "restaurant not found"},404
+
+@app.route('/restaurant/<restaurant_id>/setHoliday-hours', methods=['POST', 'GET'])
+def set_holiday_hours(store_id):
+    url = request.args.get('jsonInputString')
+    jsonInputString = unquote(url)
+   
+    if db.hexists("holidayHours", store_id):
+        db.hset("holidayHours",store_id, json.dumps(jsonInputString))
+        return {"Success": "Holiday-hours updated"}, 200
+    else:
+        return {"Error": "Store not found"},404
