@@ -1,196 +1,91 @@
-import logging
+import sys
+import redis
+import prometheus_client
 import json
-import signal
-import uuid
 
-from event_store.event_store_client import EventStoreClient, create_event
-from message_queue.message_queue_client import Consumers, send_message
+from flask import Flask, Response, request
+from prometheus_client import Counter
+from prometheus_flask_exporter import PrometheusMetrics
 
+#port = int(sys.argv[1])
+db_port = 6379
+app = Flask(__name__)
+db = redis.Redis(host='db', port=db_port)
+metrics = PrometheusMetrics(app)
 
-class bookingService(object):
-    """
-    booking Service class.
-    """
+total_requests = Counter('request_count', 'Total webapp request count')
 
-    def __init__(self):
-        self.event_store = EventStoreClient()
-        self.consumers = Consumers('booking-service', [self.create_bookings,
-                                                     self.update_booking,
-                                                     self.delete_booking])
+# static information as metric
+metrics.info('app_info', 'Application info', version='1.0.3')
 
-    @staticmethod
-    def _create_entity(_cart_id, _status='CREATED'):
-        """
-        Create an booking entity.
-        :param _cart_id: The cart ID the booking is for.
-        :param _status: The current status of the booking, defaults to CREATED.
-                        Other options are OUT_OF_STOCK, IN_STOCK, CLEARED, UNCLEARED, SHIPPED and DELIVERED.
-        :return: A dict with the entity properties.
-        """
-        return {
-            'entity_id': str(uuid.uuid4()),
-            'cart_id': _cart_id,
-            'status': _status,
-        }
+@app.route('/booking/<booking_id>', methods=['GET'])
+def get_booking(booking_id):
+    if db.hexists("bookings", booking_id):
+        return json.loads(db.hget("bookings",booking_id)), 200
+    else:
+        return {"error": "not found"},404
 
-    def start(self):
-        logging.info('starting ...')
-        self.event_store.subscribe('billing', self.billing_created)
-        self.event_store.subscribe('billing', self.billing_deleted)
-        self.event_store.subscribe('shipping', self.shipping_created)
-        self.event_store.subscribe('shipping', self.shipping_updated)
-        self.consumers.start()
-        self.consumers.wait()
+@app.route('/restaurants/<restaurant_id>/created-bookings', methods=['GET'])
+def get_created_bookings(restaurant_id):
+    bookings_records=db.hkeys("bookings")
+    created_bookings= {"bookings":[]}
+    count = 0
+    
+    for bookings_record in bookings_records:    
+        booking = json.loads(db.hget("bookings",bookings_record))
+        if booking["state"] == "Created" and booking["restaurant"]["id"] == restaurant_id:
+            created_bookings["bookings"].append({"id":bookings_record, "state":booking["state"]})
+            count += 1
+    return created_bookings,200
 
-    def stop(self):
-        self.event_store.unsubscribe('billing', self.billing_created)
-        self.event_store.unsubscribe('billing', self.billing_deleted)
-        self.event_store.unsubscribe('shipping', self.shipping_created)
-        self.event_store.unsubscribe('shipping', self.shipping_updated)
-        self.consumers.stop()
-        logging.info('stopped.')
+@app.route('/restaurants/<restaurant_id>/canceled-bookings', methods=['GET'])
+def get_canceled_bookings(restaurant_id):
+    bookings_records=db.hkeys("bookings")
+    canceled_bookings= {"bookings":[]}
 
-    def create_bookings(self, _req):
-        bookings = _req if isinstance(_req, list) else [_req]
-        booking_ids = []
+    for bookings_record in bookings_records:    
+        booking = json.loads(db.hget("bookings",bookings_record))
+        if booking["state"] == "Canceled" and booking["restaurant"]["id"] == restaurant_id:
+            canceled_bookings["bookings"].append({"id":bookings_record, "state":booking["state"]})
+    return canceled_bookings,200
 
-        for booking in bookings:
-            try:
-                new_booking = bookingService._create_entity(booking['cart_id'])
-            except KeyError:
-                return {
-                    "error": "missing mandatory parameter 'cart_id'"
-                }
-
-            # trigger event
-            self.event_store.publish('booking', create_event('entity_created', new_booking))
-
-            booking_ids.append(new_booking['entity_id'])
-
-        return {
-            "result": booking_ids
-        }
-
-    def update_booking(self, _req):
-        try:
-            booking_id = _req['entity_id']
-        except KeyError:
-            return {
-                "error": "missing mandatory parameter 'entity_id'"
-            }
-
-        rsp = send_message('read-model', 'get_entity', {'name': 'booking', 'id': booking_id})
-        if 'error' in rsp:
-            rsp['error'] += ' (from read-model)'
-            return rsp
-
-        booking = rsp['result']
-        if not booking:
-            return {
-                "error": "could not find booking"
-            }
-
-        # set new props
-        booking['entity_id'] = booking_id
-        try:
-            booking['cart_id'] = _req['cart_id']
-            booking['status'] = _req['status']
-        except KeyError:
-            return {
-                "result": "missing mandatory parameter 'cart_id' and/or 'status"
-            }
-
-        # trigger event
-        self.event_store.publish('booking', create_event('entity_updated', booking))
-
-        return {
-            "result": True
-        }
-
-    def delete_booking(self, _req):
-        try:
-            booking_id = _req['entity_id']
-        except KeyError:
-            return {
-                "error": "missing mandatory parameter 'entity_id'"
-            }
-
-        rsp = send_message('read-model', 'get_entity', {'name': 'booking', 'id': booking_id})
-        if 'error' in rsp:
-            rsp['error'] += ' (from read-model)'
-            return rsp
-
-        booking = rsp['result']
-        if not booking:
-            return {
-                "error": "could not find booking"
-            }
-
-        # trigger event
-        self.event_store.publish('booking', create_event('entity_deleted', booking))
-
-        return {
-            "result": True
-        }
-
-    def billing_created(self, _item):
-        if _item.event_action != 'entity_created':
-            return
-
-        billing = json.loads(_item.event_data)
-        rsp = send_message('read-model', 'get_entity', {'name': 'booking', 'id': billing['booking_id']})
-        booking = rsp['result']
-        if not booking['status'] == 'IN_STOCK':
-            return
-
-        booking['status'] = 'CLEARED'
-        self.event_store.publish('booking', create_event('entity_updated', booking))
-
-    def billing_deleted(self, _item):
-        if _item.event_action != 'entity_delted':
-            return
-
-        billing = json.loads(_item.event_data)
-        rsp = send_message('read-model', 'get_entity', {'name': 'booking', 'id': billing['booking_id']})
-        booking = rsp['result']
-        if not booking['status'] == 'CLEARED':
-            return
-
-        booking['status'] = 'UNCLEARED'
-        self.event_store.publish('booking', create_event('entity_updated', booking))
-
-    def shipping_created(self, _item):
-        if _item.event_action != 'entity_created':
-            return
-
-        shipping = json.loads(_item.event_data)
-        rsp = send_message('read-model', 'get_entity', {'name': 'booking', 'id': shipping['booking_id']})
-        booking = rsp['result']
-        if not booking['status'] == 'CLEARED':
-            return
-
-        booking['status'] = 'SHIPPED'
-        self.event_store.publish('booking', create_event('entity_updated', booking))
-
-    def shipping_updated(self, _item):
-        if _item.event_action != 'entity_updated':
-            return
-
-        shipping = json.loads(_item.event_data)
-        if not shipping['delivered']:
-            return
-
-        rsp = send_message('read-model', 'get_entity', {'name': 'booking', 'id': shipping['booking_id']})
-        booking = rsp['result']
-        booking['status'] = 'DELIVERED'
-        self.event_store.publish('booking', create_event('entity_updated', booking))
+@app.route('/bookings/<booking_id>/accept_pos_booking', methods=['POST'])
+def accept_booking(booking_id):
+    if db.hexists("bookings", booking_id):
+        booking = json.loads(db.hget("bookings",booking_id))
+        if booking["state"]=="Created" or booking["state"]=="Denied":
+            booking["state"] = "Accepted"
+            db.hset("bookings",booking_id,json.dumps(booking))
+            return '',204
+        else:
+            return {"error":"The booking state is " + booking["state"]},409
+    else:
+        return {"error": "not found"},404
 
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)-6s] %(message)s')
+@app.route('/bookings/<booking_id>/deny_pos_booking', methods=['POST'])
+def deny_booking(booking_id):
+    if db.hexists("bookings", booking_id):
+        booking = json.loads(db.hget("bookings",booking_id))
+        if booking["state"]=="Created" or booking["state"]=="Accepted":
+            booking["state"] = "Denied"
+            db.hset("bookings",booking_id,json.dumps(booking))
+            return '',204
+        else:
+            return {"error":"The booking state is " + booking["state"]},409
+    else:
+        return {"error": "not found"},404
 
-b = bookingService()
-
-signal.signal(signal.SIGINT, lambda n, h: o.stop())
-signal.signal(signal.SIGTERM, lambda n, h: o.stop())
-
-b.start()
+@app.route('/bookings/<booking_id>/cancel', methods=['POST'])
+def cancel_booking(booking_id):
+    if db.hexists("bookings", booking_id):
+        booking = json.loads(db.hget("bookings",booking_id))
+        if booking["state"]!="Denied" and booking["state"]!="Completed" and booking["state"]!="Canceled":
+            booking = json.loads(db.hget("bookings",booking_id))
+            booking["state"] = "Canceled"
+            db.hset("bookings",booking_id,json.dumps(booking))
+            return '',204
+        else:
+            return {"error":"The booking state is " + booking["state"]},409
+    else:
+        return {"error": "not found"},404
