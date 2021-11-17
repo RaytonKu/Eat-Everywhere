@@ -1,114 +1,46 @@
-import logging
-import signal
-import uuid
+import sys
+import redis
+import prometheus_client
+import json
 
-from flask import Flask, request, jsonify, make_response
-from event_store.event_store_client import EventStoreClient, create_event
-from message_queue.message_queue_client import Consumers, send_message
+from flask import Flask, Response, request
+from prometheus_client import Counter
+from prometheus_flask_exporter import PrometheusMetrics
 
+#port = int(sys.argv[1])
+db_port = 6379
+app = Flask(__name__)
+db = redis.Redis(host='db', port=db_port)
+metrics = PrometheusMetrics(app)
 
-class CustomerService(object):
-    """
-    Customer Service class.
-    """
-    def __init__(self):
-        self.event_store = EventStoreClient()
-        self.consumers = Consumers('customer-service', [self.create_customers,
-                                                        self.update_customer,
-                                                        self.delete_customer])
+total_requests = Counter('request_count', 'Total webapp request count')
 
-    @staticmethod
-    def _create_entity(_name, _email):
-        return {
-            'entity_id': str(uuid.uuid4()),
-            'name': _name,
-            'phone': _phone
-        }
+# static information as metric
+metrics.info('app_info', 'Application info', version='1.0.3')
 
-    def start(self):
-        logging.info('starting ...')
-        self.consumers.start()
-        self.consumers.wait()
+@app.route('/<restaurant_id>/menus', methods=['GET'])
+def get_menu(restaurant_id):
+    if db.hexists("menus", restaurant_id):
+        return json.loads(db.hget("menus",restaurant_id)), 200
+    else:
+        return {"Error": "restaurant's menu not found"},404
 
-    def stop(self):
-        self.consumers.stop()
-        logging.info('stopped.')
+@app.route('/<restaurant_id>/menus', methods=['PUT'])
+def upload_menu(restaurant_id):
+    items = request.get_json()
+    try:
+        db.hset("menus",restaurant_id,json.dumps(items))
+        return items, 200
 
-    def create_customers(self, _req):
-        customers = _req if isinstance(_req, list) else [_req]
-        customer_ids = []
+    except Exception as e:
+        return {"message":str(e)},200
 
-        for customer in customers:
-            try:
-                new_customer = CustomerService._create_entity(customer['name'], customer['phone'])
-            except KeyError:
-                return {
-                    "error": "missing mandatory parameter 'name' and/or 'phone'"
-                }
+@app.route('/<restaurant_id>/menus/dishes', methods=['POST'])
+def update_menu(restaurant_id):
+    items = request.get_json()
+    try:
+        db.hset("menus",restaurant_id,json.dumps(items))
+        return items, 200
 
-            # trigger event
-            self.event_store.publish('customer', create_event('entity_created', new_customer))
-
-            customer_ids.append(new_customer['entity_id'])
-
-        return {
-            "result": customer_ids
-        }
-
-    def update_customer(self, _req):
-        try:
-            customer = CustomerService._create_entity(_req['name'], _req['phone'])
-        except KeyError:
-            return {
-                "error": "missing mandatory parameter 'name' and/or 'phone'"
-            }
-
-        try:
-            customer['entity_id'] = _req['entity_id']
-        except KeyError:
-            return {
-                "error": "missing mandatory parameter 'entity_id'"
-            }
-
-        # trigger event
-        self.event_store.publish('customer', create_event('entity_updated', customer))
-
-        return {
-            "result": True
-        }
-
-    def delete_customer(self, _req):
-        try:
-            customer_id = _req['entity_id']
-        except KeyError:
-            return {
-                "error": "missing mandatory parameter 'entity_id'"
-            }
-
-        rsp = send_message('read-model', 'get_entity', {'name': 'customer', 'id': customer_id})
-        if 'error' in rsp:
-            rsp['error'] += ' (from read-model)'
-            return rsp
-
-        customer = rsp['result']
-        if not customer:
-            return {
-                "error": "could not find customer"
-            }
-
-        # trigger event
-        self.event_store.publish('customer', create_event('entity_deleted', customer))
-
-        return {
-            "result": True
-        }
-
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)-6s] %(message)s')
-
-c = CustomerService()
-
-signal.signal(signal.SIGINT, lambda n, h: c.stop())
-signal.signal(signal.SIGTERM, lambda n, h: c.stop())
-
-c.start()
+    except Exception as e:
+        return {"message":str(e)},200
