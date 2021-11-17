@@ -1,15 +1,14 @@
+
 FROM python:3
 
-RUN pip install grpcio
-RUN pip install grpcio-tools
+# Set the working directory to /app
+WORKDIR /app
 
-RUN mkdir -p /app
+# Copy the files into the container at /app
+COPY app.py .
+COPY requirements.txt .
 
-COPY restaurant_service.py /app/
+# Install any needed packages specified in requirements.txt
+RUN pip install -r requirements.txt
 
-ENV PYTHONPATH /app:/app/event_store:/app/message_queue
-
-RUN git clone ... /app/event_store
-RUN git clone ... /app/message_queue
-
-CMD [ "python", "app/restaurant_service.py" ]
+CMD [ "python3", "restaurant_service.py" ]
