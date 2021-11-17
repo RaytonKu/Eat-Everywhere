@@ -2,10 +2,10 @@
 This shows Redis in infrastructure services in a microservice architecture.
 
 ## Get Menu
-- [GET] /eats/stores/{store_id}/menus
+- [GET] /restaurant/{restaurant_id}/menu
 
 ## Upload Menu
-- [PUT] /eats/stores/{store_id}/menus
+- [PUT] /restaurant/{restaurant_id}/menu
 
 ## Update item
-- [POST] /eats/stores/{store_id}/menus/items/{item_id}
+- [POST] /restaurant/{restaurant_id}/menu/items
