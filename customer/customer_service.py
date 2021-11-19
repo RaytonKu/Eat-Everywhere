@@ -21,7 +21,7 @@ metrics.info('app_info', 'Application info', version='1.0.3')
 @app.route('/customers', methods=['GET'])
 def get_customer():
     if len(db.hget('customers'))==0:
-        return {"error": "Empty list"},204
+        return {"error": "The database has no customers."},204
         
     else:
         datas=db.hkeys("customers")
@@ -36,4 +36,4 @@ def get_customer_by_id(customer_id):
     if db.hexists("customers", customer_id):
         return json.loads(db.hget("customers",customer_id)), 200
     else:
-        return {"Error": "customer not found"},404
+        return {"Error": "Customer could not be located."},404
