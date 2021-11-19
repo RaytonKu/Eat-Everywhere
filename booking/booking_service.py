@@ -23,7 +23,7 @@ def get_booking(booking_id):
     if db.hexists("bookings", booking_id):
         return json.loads(db.hget("bookings",booking_id)), 200
     else:
-        return {"error": "not found"},404
+        return {"error": "No bookings were found."},404
 
 @app.route('/restaurants/<restaurant_id>/created-bookings', methods=['GET'])
 def get_created_bookings(restaurant_id):
@@ -58,9 +58,9 @@ def accept_booking(booking_id):
             db.hset("bookings",booking_id,json.dumps(booking))
             return '',204
         else:
-            return {"error":"The booking state is " + booking["state"]},409
+            return {"error":"The status of the reservation is: " + booking["state"]},409
     else:
-        return {"error": "not found"},404
+        return {"error": "No bookings were found."},404
 
 
 @app.route('/bookings/<booking_id>/deny_pos_booking', methods=['POST'])
@@ -72,9 +72,9 @@ def deny_booking(booking_id):
             db.hset("bookings",booking_id,json.dumps(booking))
             return '',204
         else:
-            return {"error":"The booking state is " + booking["state"]},409
+            return {"error":"The status of the reservation is: " + booking["state"]},409
     else:
-        return {"error": "not found"},404
+        return {"error": "No bookings were found."},404
 
 @app.route('/bookings/<booking_id>/cancel', methods=['POST'])
 def cancel_booking(booking_id):
@@ -86,6 +86,6 @@ def cancel_booking(booking_id):
             db.hset("bookings",booking_id,json.dumps(booking))
             return '',204
         else:
-            return {"error":"The booking state is " + booking["state"]},409
+            return {"error":"The status of the reservation is: " + booking["state"]},409
     else:
-        return {"error": "not found"},404
+        return {"error": "No bookings were found."},404
