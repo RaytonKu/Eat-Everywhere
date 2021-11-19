@@ -21,8 +21,7 @@ metrics.info('app_info', 'Application info', version='1.0.3')
 @app.route('/restaurants', methods=['GET'])
 def get_restaurant():
     if len(db.hget('restaurants'))==0:
-        return {"error": "Empty list"},204
-        
+        return {"error": "Empty list"},204        
     else:
         datas=db.hkeys("restaurants")
         data= {"restaurants":[]}
