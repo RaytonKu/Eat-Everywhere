@@ -23,7 +23,7 @@ def get_menu(restaurant_id):
     if db.hexists("menus", restaurant_id):
         return json.loads(db.hget("menus",restaurant_id)), 200
     else:
-        return {"Error": "restaurant's menu not found"},404
+        return {"Error": "The menu for this restaurant is unavailable."},404
 
 @app.route('/<restaurant_id>/menus', methods=['PUT'])
 def upload_menu(restaurant_id):
@@ -31,7 +31,6 @@ def upload_menu(restaurant_id):
     try:
         db.hset("menus",restaurant_id,json.dumps(items))
         return items, 200
-
     except Exception as e:
         return {"message":str(e)},200
 
@@ -41,6 +40,5 @@ def update_menu(restaurant_id):
     try:
         db.hset("menus",restaurant_id,json.dumps(items))
         return items, 200
-
     except Exception as e:
         return {"message":str(e)},200
