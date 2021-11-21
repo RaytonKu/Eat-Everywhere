@@ -39,7 +39,7 @@ def main():
 def get_stores():
     return 'stores'
 
-@app.route('/eats/stores/get_store/<store_name>', methods=['GET'])
+@app.route('/stores/get_store/<store_name>', methods=['GET'])
 def get_stores_by_name(store_name):
 	store_addr = db.hget(store_name, 'store_addr').decode()
 	store_tel = db.hget(store_name, 'store_tel').decode()
@@ -49,7 +49,7 @@ def get_stores_by_name(store_name):
 	store = {'store_name':store_name, 'store_addr':store_addr, 'store_tel':store_tel, 'store_dishes1':store_dishes1, 'store_dishes2':store_dishes2, 'store_dishes3':store_dishes3}
 	return json.dumps(store)
 
-@app.route('/eats/stores/add_store', methods=['POST'])
+@app.route('/stores/add_store', methods=['POST'])
 def add_store():
     store_name = request.values.get('store_name')
     store_addr = request.values.get('store_addr')
@@ -64,28 +64,28 @@ def add_store():
     db.hset(store_name, 'store_dishes3', store_dishes3)
     return 'store added'
 
-@app.route('/eats/stores/del_store/<store_name>', methods=['POST'])
+@app.route('/stores/del_store/<store_name>', methods=['POST'])
 def del_store():
 	pass
 
-@app.route('/eats/orders/get_order/<customer_tel>', methods=['GET'])
-def get_order(customer_tel):
+@app.route('/bookings/get_booking/<customer_tel>', methods=['GET'])
+def get_booking(customer_tel):
     store_name = db.hget(customer_tel, 'store_name').decode()
-    order_time = db.hget(customer_tel, 'order_time').decode()
-    order = {'customer_tel':customer_tel, 'store_name':store_name, 'order_time': order_time}
+    booking_time = db.hget(customer_tel, 'booking_time').decode()
+    order = {'customer_tel':customer_tel, 'store_name':store_name, 'booking_time': booking_time}
     return json.dumps(order)
 
-@app.route('/eats/orders/add_order', methods=['POST'])
-def add_order():
+@app.route('/bookings/add_booking', methods=['POST'])
+def add_booking():
     customer_tel = request.values.get('customer_tel')
     store_name = request.values.get('store_name')
-    order_time = request.values.get('order_time')
+    booking_time = request.values.get('booking_time')
     db.hset(customer_tel, 'store_name', store_name)
-    db.hset(customer_tel, 'order_time', order_time)
-    return 'order added'
+    db.hset(customer_tel, 'booking_time', booking_time)
+    return 'booking added'
 
-@app.route('/eats/orders/del_order/<customer_tel>', methods=['POST'])
-def del_order():
+@app.route('/bookings/del_booking/<customer_tel>', methods=['POST'])
+def del_booking():
     pass
 
 if __name__ == '__main__':
